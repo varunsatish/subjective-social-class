@@ -1,0 +1,126 @@
+### Calculating r-squared from bivariate regression of outcomes on each 
+### individual variable
+
+```{r}
+library(tidyverse)
+library(multidplyr)
+
+directory_path <- "../"
+data_path <- "/scratch/network/vs3041/subjective-social-class/cleaned_data/GSS_cross_section_clean.csv"
+
+GSS_data <- read_csv(data_path, show_col_types = F)
+
+# generating class indicators 
+GSS_data <- GSS_data %>%
+  mutate(
+    class_1 = ifelse(class == 1, 1, 0),
+    class_2 = ifelse(class == 2, 1, 0),
+    class_3 = ifelse(class == 3, 1, 0),
+    class_4 = ifelse(class == 4, 1, 0),
+    
+    class_1_2 = case_when(
+      class == 1 ~ 0,
+      class == 2 ~ 1
+    ),
+    class_2_3 = case_when(
+      class == 2 ~ 0,
+      class == 3 ~ 1
+    ),
+    class_3_4 = case_when(
+      class == 3 ~ 0,
+      class == 4 ~ 1
+    ))
+
+```
+
+```{r}
+explanatory_variables <- c("occ10_c", "realinc_c", "degree", "finrela")
+
+class_1_df <- GSS_data %>%
+  select(class_1, year, explanatory_variables) 
+
+class_2_df <- GSS_data %>%
+  select(class_2, year, explanatory_variables) 
+
+class_3_df <- GSS_data %>%
+  select(class_3, year, explanatory_variables) 
+
+class_4_df <- GSS_data %>%
+  select(class_4, year, explanatory_variables) 
+
+```
+
+```{r}
+
+return_r2_trends <- function(outcome_var, explanatory_variables){
+
+  regression_results <- GSS_data %>%
+    # Group by survey year
+    group_by(year) %>%
+    # Create one row per explanatory variable
+    crossing(explanatory_variable = explanatory_variables) %>%
+    # Run regression and extract statistics
+    group_by(year, explanatory_variable) %>%
+    summarize(
+      r_squared = summary(lm(as.formula(paste(outcome_var, "~", explanatory_variable))))$r.squared,
+      .groups = 'drop'
+    ) %>%
+    # Make it easier to read
+    mutate(
+      r_squared = round(r_squared, 3),
+      outcome_variable = outcome_var
+    )
+  
+  return(regression_results)
+}
+
+outcome_variables <- c("class_1", "class_2", "class_3", "class_4")
+
+r2_trends <- tibble(
+  year = numeric(),
+  explanatory_variable = character(),
+  outcome_variable = character(),
+  r_squared = numeric()
+)
+
+for (outcome_var in outcome_variables) {
+  
+  regression_results_for_outcome <- return_r2_trends(outcome_var, explanatory_variables)
+  
+  r2_trends <- rbind(r2_trends, regression_results_for_outcome)
+  
+}
+
+
+```
+
+
+```{r}
+ggplot(r2_trends, aes(x = year, y = r_squared, color=explanatory_variable)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  facet_wrap(~outcome_variable, 
+    labeller = as_labeller(c(
+      "class_1" = "Lower",
+      "class_2" = "Working",
+      "class_3" = "Middle",
+      "class_4" = "Upper"
+    ))) +
+  theme(text = element_text(family = "Times New Roman")) +
+  theme_bw() +
+  theme(axis.text = element_text(size = 15)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=15)) +
+  theme(axis.title = element_text(size = 15)) +
+  theme(legend.text = element_text(size = 15)) + 
+  theme(legend.title = element_text(size = 15)) +
+  labs(
+    x = "Year",
+    y = "R-squared"
+  )
+
+
+
+
+
+
+```
