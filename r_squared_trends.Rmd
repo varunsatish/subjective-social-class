@@ -9,6 +9,37 @@ directory_path <- "../"
 data_path <- "/scratch/network/vs3041/subjective-social-class/cleaned_data/GSS_cross_section_clean.csv"
 figure_save_path <- "/home/vs3041/subjective-social-class/figures/"
 
+
+# setting ggplot theme
+scale_colour_brewer_d <- function(..., palette = "Set1") {
+  scale_colour_brewer(..., palette = palette )
+}
+
+scale_fill_brewer_d <- function(..., palette = "Set1") {
+  scale_fill_brewer(..., palette = palette)
+}
+
+options(
+  ggplot2.discrete.colour = scale_colour_brewer_d,
+  ggplot2.discrete.fill = scale_fill_brewer_d
+)
+
+
+theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = 20)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=15)) +
+  theme(axis.title = element_text(size = 20)) +
+  theme(legend.text = element_text(size = 15)) + 
+  theme(legend.title = element_text(size = 15)) +
+  theme(text = element_text(family = "serif")) 
+
+
+# setting some parameters
+axis_title_size = 17
+axis_tick_size = 12
+
+
+
 GSS_data <- read_csv(data_path, show_col_types = F)
 
 # generating class indicators 
@@ -36,7 +67,6 @@ GSS_data <- GSS_data %>%
 
 ```{r}
 
-# Function to calculate R-squared trends
 return_r2_trends <- function(data, outcome_var, explanatory_variables) {
   # Individual variable regressions
   individual_results <- data %>%
@@ -44,28 +74,31 @@ return_r2_trends <- function(data, outcome_var, explanatory_variables) {
     crossing(explanatory_variable = explanatory_variables) %>%
     group_by(year, explanatory_variable) %>%
     summarize(
-      r_squared = summary(lm(as.formula(paste(outcome_var, "~ factor(", explanatory_variable, ")", collapse=" ")), data = cur_group()))$r.squared,
+      r_squared = {
+        formula_to_run <- as.formula(paste0(outcome_var, " ~ factor(", explanatory_variable, ")"))
+        summary(lm(formula_to_run, data = cur_group()))$r.squared
+      },
       model_type = "individual",
       .groups = 'drop'
     )
-  
-  # All variables regression
-  all_vars_formula <- paste(outcome_var, "~", paste("factor(", explanatory_variables, ")", collapse = " + "))
-  full_results <- data %>%
+    
+  # Combined regression with all variables
+  combined_results <- data %>%
     group_by(year) %>%
     summarize(
-      r_squared = summary(lm(as.formula(all_vars_formula), data = cur_group()))$r.squared,
-      explanatory_variable = "all_variables",
-      model_type = "full",
+      r_squared = {
+        formula_parts <- paste0("factor(", explanatory_variables, ")", collapse = " + ")
+        formula_to_run <- as.formula(paste0(outcome_var, " ~ ", formula_parts))
+        summary(lm(formula_to_run, data = cur_group()))$r.squared
+      },
+      model_type = "combined",
+      explanatory_variable = "all",
       .groups = 'drop'
     )
-  
-  # Combine results
-  bind_rows(individual_results, full_results) %>%
-    mutate(
-      r_squared = round(r_squared, 3),
-      outcome_variable = outcome_var
-    )
+    
+  # Combine both results and add outcome variable
+  bind_rows(individual_results, combined_results) %>%
+    mutate(outcome_variable = outcome_var)
 }
 
 
@@ -109,7 +142,7 @@ ggplot(r2_trends, aes(x = year, y = r_squared, color=explanatory_variable)) +
     color = "Feature Set"
   ) + 
   scale_color_discrete(labels = c(
-  "all_variables" = "All Variables",
+  "all" = "All Variables",
   "degree" = "Education",
   "finrela" = "Perceived Income",
   "occ10_c" = "Occupation",

@@ -78,3 +78,27 @@ c_tree_one_v_all_latex <- c_tree_one_v_all_wide %>%
                      "Working" = 3,
                      "Middle" = 3,
                      "Upper" = 3))
+
+
+# Fix for all variables regression
+all_vars_formula <- as.formula(paste(
+  outcome_var, 
+  "~", 
+  paste("factor(", explanatory_variables, ")", collapse = " + ")
+))
+
+full_results <- data %>%
+  group_by(year) %>%
+  summarize(
+    r_squared = summary(lm(all_vars_formula, data = cur_group()))$r.squared,
+    explanatory_variable = "all_variables",
+    model_type = "full",
+    .groups = 'drop'
+  )
+
+# Combine results
+bind_rows(individual_results, full_results) %>%
+  mutate(
+    r_squared = round(r_squared, 3),
+    outcome_variable = outcome_var
+  )
