@@ -7,6 +7,7 @@ library(multidplyr)
 
 directory_path <- "../"
 data_path <- "/scratch/network/vs3041/subjective-social-class/cleaned_data/GSS_cross_section_clean.csv"
+figure_save_path <- "/home/vs3041/subjective-social-class/figures/"
 
 GSS_data <- read_csv(data_path, show_col_types = F)
 
@@ -34,63 +35,52 @@ GSS_data <- GSS_data %>%
 ```
 
 ```{r}
-explanatory_variables <- c("occ10_c", "realinc_c", "degree", "finrela")
 
-class_1_df <- GSS_data %>%
-  select(class_1, year, explanatory_variables) 
-
-class_2_df <- GSS_data %>%
-  select(class_2, year, explanatory_variables) 
-
-class_3_df <- GSS_data %>%
-  select(class_3, year, explanatory_variables) 
-
-class_4_df <- GSS_data %>%
-  select(class_4, year, explanatory_variables) 
-
-```
-
-```{r}
-
-return_r2_trends <- function(outcome_var, explanatory_variables){
-
-  regression_results <- GSS_data %>%
-    # Group by survey year
+# Function to calculate R-squared trends
+return_r2_trends <- function(data, outcome_var, explanatory_variables) {
+  # Individual variable regressions
+  individual_results <- data %>%
     group_by(year) %>%
-    # Create one row per explanatory variable
     crossing(explanatory_variable = explanatory_variables) %>%
-    # Run regression and extract statistics
     group_by(year, explanatory_variable) %>%
     summarize(
-      r_squared = summary(lm(as.formula(paste(outcome_var, "~", explanatory_variable))))$r.squared,
+      r_squared = summary(lm(as.formula(paste(outcome_var, "~ factor(", explanatory_variable, ")", collapse=" ")), data = cur_group()))$r.squared,
+      model_type = "individual",
       .groups = 'drop'
-    ) %>%
-    # Make it easier to read
+    )
+  
+  # All variables regression
+  all_vars_formula <- paste(outcome_var, "~", paste("factor(", explanatory_variables, ")", collapse = " + "))
+  full_results <- data %>%
+    group_by(year) %>%
+    summarize(
+      r_squared = summary(lm(as.formula(all_vars_formula), data = cur_group()))$r.squared,
+      explanatory_variable = "all_variables",
+      model_type = "full",
+      .groups = 'drop'
+    )
+  
+  # Combine results
+  bind_rows(individual_results, full_results) %>%
     mutate(
       r_squared = round(r_squared, 3),
       outcome_variable = outcome_var
     )
-  
-  return(regression_results)
 }
 
+
+
+# variables to loop through
+explanatory_variables <- c("occ10_c", "realinc_c", "degree", "finrela")
 outcome_variables <- c("class_1", "class_2", "class_3", "class_4")
 
-r2_trends <- tibble(
-  year = numeric(),
-  explanatory_variable = character(),
-  outcome_variable = character(),
-  r_squared = numeric()
-)
+# subsetting data so that module doesn't crash
+GSS_data_for_regressions <- GSS_data %>%
+  select(all_of(explanatory_variables), all_of(outcome_variables), "year")
 
-for (outcome_var in outcome_variables) {
-  
-  regression_results_for_outcome <- return_r2_trends(outcome_var, explanatory_variables)
-  
-  r2_trends <- rbind(r2_trends, regression_results_for_outcome)
-  
-}
 
+# Calculate R-squared trends for all classes
+r2_trends <- map_dfr(outcome_variables, ~return_r2_trends(GSS_data_for_regressions, .x, explanatory_variables))
 
 ```
 
@@ -109,17 +99,28 @@ ggplot(r2_trends, aes(x = year, y = r_squared, color=explanatory_variable)) +
   theme(text = element_text(family = "Times New Roman")) +
   theme_bw() +
   theme(axis.text = element_text(size = 15)) +
-  theme(axis.text.x = element_text(angle=45, hjust=1, size=15)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=12)) +
   theme(axis.title = element_text(size = 15)) +
   theme(legend.text = element_text(size = 15)) + 
   theme(legend.title = element_text(size = 15)) +
   labs(
     x = "Year",
-    y = "R-squared"
+    y = "R-squared",
+    color = "Feature Set"
+  ) + 
+  scale_color_discrete(labels = c(
+  "all_variables" = "All Variables",
+  "degree" = "Education",
+  "finrela" = "Perceived Income",
+  "occ10_c" = "Occupation",
+  "realinc_c" = "Real Income"
+)) +
+  theme(
+    panel.spacing.x = unit(0.65, "cm")  # Increase space between facets so labels don't overlap
   )
 
 
-
+ggsave(paste0(figure_save_path, "/r2_trends_over_time.pdf"), width = 10, height = 8)
 
 
 
