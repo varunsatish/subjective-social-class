@@ -1,11 +1,9 @@
+```{r}
+
 library(tidyverse)
 library(ggplot2)
 library(RColorBrewer)
-library(tree)
-library(randomForest)
-library(pROC)
-library(haven)
-library(kableExtra)
+
 
 # Setting the directory
 directory_path <- "/home/vs3041/subjective-social-class/"
@@ -27,7 +25,6 @@ options(
 )
 
 
-
 theme(legend.position="bottom") +
   theme(axis.text = element_text(size = 20)) +
   theme(axis.text.x = element_text(angle=45, hjust=1, size=15)) +
@@ -44,6 +41,8 @@ axis_tick_size = 12
 
 GSS_data <- read_csv(data_path, show_col_types = F)
 
+```
+
 # proportion identifiying as each class 1972-2018
 
 class_identification_by_year <- GSS_data %>%
@@ -59,6 +58,8 @@ y_o_y_variation <- class_identification_by_year %>%
   filter(class == 2) %>%
   pull(proportion) %>%
   sd()
+
+
 
 
 ggplot(class_identification_by_year, aes(x = year, y = proportion, color = as.factor(class), shape = as.factor(class))) +
