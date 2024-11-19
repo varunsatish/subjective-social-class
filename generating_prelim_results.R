@@ -1,0 +1,394 @@
+library(tidyverse)
+library(ggplot2)
+library(RColorBrewer)
+library(tree)
+library(randomForest)
+library(pROC)
+library(haven)
+library(kableExtra)
+
+# Setting the directory
+directory_path <- "/home/vs3041/subjective-social-class/"
+data_path <- "/scratch/network/vs3041/subjective-social-class/cleaned_data/GSS_cross_section_clean.csv"
+figure_save_path <- paste0(directory_path, "figures/")
+
+# setting ggplot theme
+scale_colour_brewer_d <- function(..., palette = "Set1") {
+  scale_colour_brewer(..., palette = palette )
+}
+
+scale_fill_brewer_d <- function(..., palette = "Set1") {
+  scale_fill_brewer(..., palette = palette)
+}
+
+options(
+  ggplot2.discrete.colour = scale_colour_brewer_d,
+  ggplot2.discrete.fill = scale_fill_brewer_d
+)
+
+
+
+theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = 20)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=15)) +
+  theme(axis.title = element_text(size = 20)) +
+  theme(legend.text = element_text(size = 15)) + 
+  theme(legend.title = element_text(size = 15)) +
+  theme(text = element_text(family = "sans")) 
+
+
+# setting some parameters
+axis_title_size = 17
+axis_tick_size = 12
+
+
+GSS_data <- read_csv(data_path, show_col_types = F)
+
+# proportion identifiying as each class 1972-2018
+
+class_identification_by_year <- GSS_data %>%
+  filter(!is.na(class)) %>%
+  group_by(year, class) %>%
+  summarize(count = n()) %>%
+  mutate(proportion = count / sum(count)) %>%
+  arrange(desc(as.numeric(class)))       # ordering for legend
+
+
+# statistic for abstract
+y_o_y_variation <- class_identification_by_year %>%
+  filter(class == 2) %>%
+  pull(proportion) %>%
+  sd()
+
+
+ggplot(class_identification_by_year, aes(x = year, y = proportion, color = as.factor(class), shape = as.factor(class))) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.6)) +
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018)) +
+  theme_bw() +
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) + 
+  theme(legend.title = element_blank())
+
+ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year.png", sep = "/"), width=7.06, height=4.36)
+
+#### Compositional figures 
+
+generate_class_by_variable_data <- function(data, variable) {
+  
+  data_to_return <- data %>%
+    filter(!is.na(!!sym(variable))) %>%
+    group_by(!!sym(variable), class, year) %>%
+    summarize(cell_count = n()) %>%
+    group_by(!!sym(variable), year) %>%
+    mutate(category_total = sum(cell_count)) %>%
+    ungroup() %>%
+    group_by(year) %>%
+    mutate(year_total = sum(cell_count)) %>%
+    mutate(conditional_probability = cell_count/category_total) %>%
+    mutate(marginal_probability = category_total/year_total) %>%
+    arrange(year) %>%
+    select(!!sym(variable), year, conditional_probability, marginal_probability, class)
+  
+  return(data_to_return)
+  
+}
+
+GSS_data_educ_mod <- GSS_data %>%
+  filter(!is.na(educ_c)) %>%
+  mutate(educ_category = case_when(
+    educ_c == 1 ~ "Less than HS",
+    educ_c == 2 ~ "1-3 years college",
+    educ_c == 3 ~ "4+ years college"))
+
+education_data <- generate_class_by_variable_data(data = GSS_data_educ_mod,
+                                                  variable = "educ_category")
+ggplot(education_data, aes(x = year, 
+                      y = conditional_probability, 
+                      color = as.factor(class),
+                      shape = as.factor(class))) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~ factor(educ_category, c("Less than HS", "1-3 years college", "4+ years college"))) +
+  theme_bw() + 
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) + 
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = 15)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Education Level:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) +  # size and font of x axis at top
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) 
+  
+ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
+
+
+ggplot(education_data, aes(x = year, 
+                           y = marginal_probability)) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~ factor(educ_category, c("Less than HS", "1-3 years college", "4+ years college"))) +
+  theme_bw() + 
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = 15)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Education Level:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
+
+
+# occupation
+
+GSS_data_occupation_mod <- GSS_data %>%
+  filter(!is.na(prestg10_c)) %>%
+  mutate(prestg10_category = case_when(
+    prestg10_c == 1 ~ "1st Quartile",
+    prestg10_c == 2 ~ "2nd Quartile",
+    prestg10_c == 3 ~ "3rd Quartile",
+    prestg10_c == 4 ~ "4th Quartile")) 
+
+
+occupation_data <- generate_class_by_variable_data(data = GSS_data_occupation_mod,
+                                                  variable = "prestg10_category")
+ggplot(occupation_data, aes(x = year, 
+                            y = conditional_probability, 
+                            color = as.factor(class),
+                            shape = as.factor(class))) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~prestg10_category,nrow = 1) +
+  theme_bw() +
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) + 
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Occupational Prestige:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) +  # size and font of x axis at top
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
+
+
+ggplot(occupation_data, aes(x = year, 
+                           y = marginal_probability)) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~prestg10_category,nrow = 1) +
+  theme_bw() + 
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), 
+                     sec.axis = sec_axis(~ . , name = "Occupational Prestige:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
+
+
+# finrela 
+
+GSS_data_finrela_mod <- GSS_data %>%
+  filter(!is.na(finrela)) %>%
+  mutate(finrela_category = case_when(
+    finrela == 1 | finrela == 2 ~ "Below",
+    finrela == 3 ~ "Average",
+    finrela == 4 | finrela == 5 ~ "Above")) 
+
+
+finrela_data <- generate_class_by_variable_data(data = GSS_data_finrela_mod,
+                                                   variable = "finrela_category")
+ggplot(finrela_data, aes(x = year, 
+                            y = conditional_probability, 
+                            color = as.factor(class),
+                            shape = as.factor(class))) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~factor(finrela_category, levels = c("Below", "Average", "Above")) ,nrow = 1) +
+  theme_bw() +
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) + 
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Perceived Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) +  # size and font of x axis at top
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
+
+
+ggplot(finrela_data, aes(x = year, 
+                            y = marginal_probability)) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~factor(finrela_category, levels = c("Below", "Average", "Above")) ,nrow = 1) +
+  theme_bw() + 
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), 
+                     sec.axis = sec_axis(~ . , name = "Perceived Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = axis_title_size, family = "sans")) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
+
+# inflation adjusted family income
+
+GSS_data_coninc_mod <- GSS_data %>%
+  filter(!is.na(coninc_c)) %>%
+  mutate(coninc_category = case_when(
+    coninc_c == 1 ~ "1st Quartile",
+    coninc_c == 2 ~ "2nd Quartile",
+    coninc_c == 3 ~ "3rd Quartile",
+    coninc_c == 4 ~ "4th Quartile")) 
+
+coninc_data <- generate_class_by_variable_data(data = GSS_data_coninc_mod,
+                                                variable = "coninc_category")
+ggplot(coninc_data, aes(x = year, 
+                         y = conditional_probability, 
+                         color = as.factor(class),
+                         shape = as.factor(class))) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~coninc_category, nrow = 1) +
+  theme_bw() +
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) + 
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Inflation-adjusted Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = 15, family = "sans")) +  # size and font of x axis at top
+  scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
+  scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
+  guides(color = guide_legend(override.aes=list(fill=NA), # getting rid of grey background 
+                              nrow=1),
+         shape = guide_legend(nrow = 1)) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
+
+
+# for stats in paper 
+
+#coninc_data %>% filter(year == 2018) %>% filter(class == 3)
+
+
+ggplot(coninc_data, aes(x = year, 
+                         y = marginal_probability)) +
+  geom_smooth(size=0.5) +
+  geom_point(size=2) +
+  ylim(range(0, 0.8)) +
+  facet_wrap(~coninc_category,nrow = 1) +
+  theme_bw() + 
+  theme(legend.position="bottom") +
+  theme(axis.text = element_text(size = axis_tick_size)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=axis_tick_size)) +
+  theme(axis.title = element_text(size = axis_title_size)) +
+  theme(legend.text = element_text(size = axis_title_size)) + 
+  theme(legend.title = element_text(size = axis_title_size)) +
+  theme(text = element_text(family = "sans")) +
+  labs(x = "Year", y = "Proportion Within Year") +
+  theme(legend.title = element_blank()) +
+  theme(strip.text = element_text(size = 15)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), 
+                     sec.axis = sec_axis(~ . , name = "Inflation-adjusted Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(axis.title.x.top = element_text(size = axis_title_size, family = "sans")) 
+
+ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
+
+
+
