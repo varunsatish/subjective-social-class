@@ -82,7 +82,7 @@ ggplot(class_identification_by_year, aes(x = year, y = proportion, color = as.fa
          shape = guide_legend(nrow = 1)) + 
   theme(legend.title = element_blank())
 
-ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "class_identification_by_year.png", sep = "/"), width=7.06, height=4.36)
 
 ```
 
@@ -156,7 +156,7 @@ ggplot(education_data, aes(x = year,
                               nrow=1),
          shape = guide_legend(nrow = 1)) 
   
-ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "class_identification_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
 
 
 
@@ -181,23 +181,30 @@ ggplot(education_data, aes(x = year,
   scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Education Level:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   theme(axis.title.x.top = element_text(size = 15, family = "serif")) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "prevalence_by_year_educ.png", sep = "/"), width=7.06, height=4.36)
 ```
 
 ## Occupation
 
 ```{r}
 GSS_data_occupation_mod <- GSS_data %>%
-  filter(!is.na(prestg10_c)) %>%
-  mutate(prestg10_category = case_when(
-    prestg10_c == 1 ~ "1st Quartile",
-    prestg10_c == 2 ~ "2nd Quartile",
-    prestg10_c == 3 ~ "3rd Quartile",
-    prestg10_c == 4 ~ "4th Quartile")) 
-
+  filter(!is.na(occ10_c)) %>%
+  mutate(occ10_category = case_when(
+  occ10_c == 1 ~ "Higher \n service",
+  occ10_c == 2 ~ "Lower \n service", 
+  occ10_c == 3 ~ "Higher routine \n non-manual",
+  occ10_c == 4 ~ "Lower routine \n non-manual",
+  occ10_c == 7 ~ "Self-employed \n farmers",
+  occ10_c == 8 ~ "Manual supervisors \n and technicians",
+  occ10_c == 9 ~ "Skilled manual \n workers",
+  occ10_c == 10 ~ "Semi and unskilled \n manual workers",
+  occ10_c == 11 ~ "Agricultural \n laborers",
+  occ10_c == 12 ~ "Military \n personnel",
+  TRUE ~ NA_character_
+)) 
 
 occupation_data <- generate_class_by_variable_data(data = GSS_data_occupation_mod,
-                                                  variable = "prestg10_category")
+                                                  variable = "occ10_category")
 ggplot(occupation_data, aes(x = year, 
                             y = conditional_probability, 
                             color = as.factor(class),
@@ -205,7 +212,7 @@ ggplot(occupation_data, aes(x = year,
   geom_smooth(size=0.5) +
   geom_point(size=2) +
   ylim(range(0, 0.8)) +
-  facet_wrap(~prestg10_category,nrow = 1) +
+  facet_wrap(~occ10_category,nrow = 2) +
   theme_bw() +
   theme(legend.position="bottom") +
   theme(axis.text = element_text(size = axis_tick_size)) +
@@ -221,8 +228,8 @@ ggplot(occupation_data, aes(x = year,
                               nrow=1),
          shape = guide_legend(nrow = 1)) + 
   theme(legend.title = element_blank()) +
-  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
-  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Occupational Prestige:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+  theme(strip.text = element_text(size = 11)) +   # facet labels
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), sec.axis = sec_axis(~ . , name = "Occupation:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   theme(axis.title.x.top = element_text(size = 15, family = "serif")) +  # size and font of x axis at top
   scale_shape_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c(15, 16, 17, 18)) +       # changing shapes
   scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
@@ -230,7 +237,7 @@ ggplot(occupation_data, aes(x = year,
                               nrow=1),
          shape = guide_legend(nrow = 1)) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "class_identification_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
 
 
 ggplot(occupation_data, aes(x = year, 
@@ -238,7 +245,7 @@ ggplot(occupation_data, aes(x = year,
   geom_smooth(size=0.5) +
   geom_point(size=2) +
   ylim(range(0, 0.8)) +
-  facet_wrap(~prestg10_category,nrow = 1) +
+  facet_wrap(~occ10_category,nrow = 2) +
   theme_bw() + 
   theme(legend.position="bottom") +
   theme(axis.text = element_text(size = axis_tick_size)) +
@@ -249,12 +256,12 @@ ggplot(occupation_data, aes(x = year,
   theme(text = element_text(family = "serif")) +
   labs(x = "Year", y = "Proportion Within Year") +
   theme(legend.title = element_blank()) +
-  theme(strip.text = element_text(size = axis_title_size)) +   # facet labels
+  theme(strip.text = element_text(size = 11)) +   # facet labels (changed because these ones are large)
   scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), 
-                     sec.axis = sec_axis(~ . , name = "Occupational Prestige:", breaks = NULL, labels = NULL)) +  # adding second axis up top
+                     sec.axis = sec_axis(~ . , name = "Occupation:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   theme(axis.title.x.top = element_text(size = 15, family = "serif")) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "prevalence_by_year_occupation.png", sep = "/"), width=7.06, height=4.36)
 
 ```
 
@@ -303,7 +310,7 @@ ggplot(finrela_data, aes(x = year,
                               nrow=1),
          shape = guide_legend(nrow = 1)) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "class_identification_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
 
 
 ggplot(finrela_data, aes(x = year, 
@@ -327,7 +334,7 @@ ggplot(finrela_data, aes(x = year,
                      sec.axis = sec_axis(~ . , name = "Perceived Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   theme(axis.title.x.top = element_text(size = axis_title_size, family = "serif")) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "prevalence_by_year_finrela.png", sep = "/"), width=7.06, height=4.36)
 ```
 
 # inflation adjusted family income
@@ -375,7 +382,7 @@ ggplot(coninc_data, aes(x = year,
                               nrow=1),
          shape = guide_legend(nrow = 1)) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "class_identification_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "class_identification_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
 
 # for stats in paper 
 
@@ -403,7 +410,7 @@ ggplot(coninc_data, aes(x = year,
                      sec.axis = sec_axis(~ . , name = "Inflation-adjusted Family Income:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   theme(axis.title.x.top = element_text(size = axis_title_size, family = "serif")) 
 
-ggsave(filename=paste(directory_path, figure_save_path, "prevalence_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
+ggsave(filename=paste(figure_save_path, "prevalence_by_year_coninc.png", sep = "/"), width=7.06, height=4.36)
 
 
 ```

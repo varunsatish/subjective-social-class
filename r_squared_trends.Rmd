@@ -119,7 +119,22 @@ r2_trends <- map_dfr(outcome_variables, ~return_r2_trends(GSS_data_for_regressio
 
 
 ```{r}
-ggplot(r2_trends, aes(x = year, y = r_squared, color=explanatory_variable)) +
+
+# setting ggplot theme
+scale_colour_brewer_d <- function(..., palette = "Set1") {
+  scale_colour_brewer(..., palette = palette )
+}
+
+scale_fill_brewer_d <- function(..., palette = "Set1") {
+  scale_fill_brewer(..., palette = palette)
+}
+
+options(
+  ggplot2.discrete.colour = scale_colour_brewer_d,
+  ggplot2.discrete.fill = scale_fill_brewer_d
+)
+
+ggplot(r2_trends, aes(x = year, y = r_squared, color = outcome_variable, linetype=explanatory_variable, shape=explanatory_variable)) +
   geom_point() +
   geom_smooth(method = "loess") +
   facet_wrap(~outcome_variable, 
@@ -139,15 +154,17 @@ ggplot(r2_trends, aes(x = year, y = r_squared, color=explanatory_variable)) +
   labs(
     x = "Year",
     y = "R-squared",
-    color = "Feature Set"
-  ) + 
-  scale_color_discrete(labels = c(
-  "all" = "All Variables",
-  "degree" = "Education",
-  "finrela" = "Perceived Income",
-  "occ10_c" = "Occupation",
-  "realinc_c" = "Real Income"
-)) +
+    shape = "Feature Set",
+    linetype = "Feature Set",
+    color = "Feature Set")  +
+  theme(legend.title = element_blank()) +
+  guides(
+    color = "none",
+    shape = guide_legend(override.aes=list(fill=NA)),
+    shape = guide_legend(override.aes = list(color = "black")),
+    linetype = guide_legend(override.aes = list(color = "black"))
+    ) + 
+    scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
   theme(
     panel.spacing.x = unit(0.65, "cm")  # Increase space between facets so labels don't overlap
   )
