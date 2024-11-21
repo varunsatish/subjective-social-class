@@ -134,7 +134,19 @@ options(
   ggplot2.discrete.fill = scale_fill_brewer_d
 )
 
-ggplot(r2_trends, aes(x = year, y = r_squared, color = outcome_variable, linetype=explanatory_variable, shape=explanatory_variable)) +
+
+# relabelling for legend 
+r2_trends_relabelled <- r2_trends %>%
+  mutate(explanatory_variable = case_when(
+    explanatory_variable == "all" ~ "All below \n included",
+    explanatory_variable == "degree" ~ "Education",
+    explanatory_variable == "finrela" ~ "Perceived \n income",
+    explanatory_variable == "occ10_c" ~ "Occupation",
+    explanatory_variable == "realinc_c" ~ "Real \n income",
+    .default = explanatory_variable
+  ))
+
+ggplot(r2_trends_relabelled, aes(x = year, y = r_squared, color = outcome_variable, linetype=explanatory_variable, shape=explanatory_variable)) +
   geom_point() +
   geom_smooth(method = "loess") +
   facet_wrap(~outcome_variable, 
@@ -151,26 +163,31 @@ ggplot(r2_trends, aes(x = year, y = r_squared, color = outcome_variable, linetyp
   theme(axis.title = element_text(size = 15)) +
   theme(legend.text = element_text(size = 15)) + 
   theme(legend.title = element_text(size = 15)) +
+  theme(legend.title = element_blank()) +
+  scale_x_continuous(breaks = c(1972, 1980, 1990, 2000, 2010, 2018), 
+                     sec.axis = sec_axis(~ . , name = "Self-identified Class:", breaks = NULL, labels = NULL)) +  # adding second axis up top
   labs(
     x = "Year",
     y = "R-squared",
     shape = "Feature Set",
     linetype = "Feature Set",
     color = "Feature Set")  +
-  theme(legend.title = element_blank()) +
   guides(
     color = "none",
     shape = guide_legend(override.aes=list(fill=NA)),
-    shape = guide_legend(override.aes = list(color = "black")),
-    linetype = guide_legend(override.aes = list(color = "black"))
+    shape = guide_legend(override.aes = list(color = "black"), nrow=1),
+    linetype = guide_legend(override.aes = list(color = "black"), nrow=1)
     ) + 
     scale_color_manual(labels = c("Lower", "Working", "Middle","Upper"), values = c('chartreuse3', 'dodgerblue3', "firebrick3", "gold3")) +
   theme(
     panel.spacing.x = unit(0.65, "cm")  # Increase space between facets so labels don't overlap
-  )
+  ) +
+  theme(legend.position = "bottom") + 
+  theme(text = element_text(family = "serif")) +
+  theme(strip.text = element_text(size = 15))
+  
 
-
-ggsave(paste0(figure_save_path, "/r2_trends_over_time.pdf"), width = 10, height = 8)
+ggsave(paste0(figure_save_path, "/r2_trends_over_time.pdf"), width = 8, height = 8)
 
 
 
