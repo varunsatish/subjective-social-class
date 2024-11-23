@@ -210,7 +210,7 @@ ggplot(occupation_data, aes(x = year,
                             color = as.factor(class),
                             shape = as.factor(class))) +
   geom_smooth(size=0.5) +
-  geom_point(size=2) +
+  geom_point(size=1) +
   ylim(range(0, 0.8)) +
   facet_wrap(~occ10_category,nrow = 2) +
   theme_bw() +
